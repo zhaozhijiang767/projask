@@ -1,0 +1,44 @@
+app:
+  name: 工程问数
+  version: 2.0.0
+  # development：允许本地默认值；production：启动期强制校验安全配置
+  environment: development
+  cors_origins:
+    - http://localhost:5173
+    - http://localhost:8000
+
+logging:
+  file:
+    enable: true
+    level: INFO
+    path: logs
+    rotation: 10 MB
+    retention: 7 days
+  console:
+    enable: true
+    level: INFO
+
+# 元数据库：表 / 字段 / 指标 / 字段-指标关联（Oracle 用户 meta）
+db_meta:
+  host: localhost
+  port: 1521
+  user: meta
+  # 本地/测试环境口令；生产必须用 PROJASK_DB_META_PASSWORD 覆盖
+  password: Spms123456
+  service_name: SPMSUAT
+
+# 数仓：语义层视图（Oracle 用户 dw，知识库构建用）
+db_dw:
+  host: localhost
+  port: 1521
+  user: dw
+  password: Spms123456
+  service_name: SPMSUAT
+
+# 问数执行账号：只有视图 SELECT 权限；生产必填
+db_dw_reader:
+  host: localhost
+  port: 1521
+  user: dw_reader
+  password: Spms123456
+  service_name: SPMSUAT

@@ -1,0 +1,22 @@
+[project]
+name = "projask"
+version = "2.0.0"
+description = "工程问数（ProjAsk）· 工程建设项目管理自然语言问数平台"
+readme = "README.md"
+authors = [
+    { name = "zhaozhijiang767", email = "dylan.zhao.official@outlook.com" }
+]
+requires-python = ">=3.12"
+
+# 依赖的唯一来源是 requirements.txt（Docker、CI、本地共用一份，避免两处漂移）。
+# 安装：uv pip install -r requirements.txt
+# 运行：先激活 .venv，再用文档里的 python -m pytest / uvicorn 命令。
+# 注意两个坑：
+#   1. 不要执行 uv sync —— dependencies 为空，它会把已安装的依赖全部移除；
+#   2. 不要用 uv run —— 它会先做一次隐式 sync，同样可能清掉手动装的包。
+dependencies = []
+
+[tool.uv]
+# 这是一个应用，不是可分发库：不需要 build-backend，也不要求 src/ 布局。
+# 因此可以放心删掉 src/，直接用项目根目录作为包根（from app.core import ...）。
+package = false

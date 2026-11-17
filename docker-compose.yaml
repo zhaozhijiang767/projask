@@ -1,0 +1,137 @@
+# 本地全栈：Oracle(SPMSUAT) + Redis + Qdrant + ES + Mongo + 向量服务 + 应用
+#
+# 容器名用 container_name 固定，不带 compose 默认的 -1 后缀，便于 docker logs/exec 时少打字。
+# 代价：不能再 --scale 扩容（本地开发不需要）。
+#
+# 首次启动注意：
+#   1. Oracle 首次启动会创建 PDB SPMSUAT 并执行 ./oracle 下的 00/01/02/04 脚本，约 3-5 分钟；
+#   2. 向量服务首次启动要下载 bge-large-zh-v1.5（约 1.3GB），国内网络建议先配镜像；
+#   3. 知识库构建是独立一步，不在容器启动里做（见 README 或文档第 21.7 节）。
+services:
+  oracle:
+    container_name: projask-oracle
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      # SYS/SYSTEM 口令。用 Spms123456 而不是 123456：Oracle 口令复杂度校验
+      # 会拒绝纯数字弱口令（ORA-28003），本地也别养成弱口令习惯。
+      ORACLE_PASSWORD: "Spms123456"
+      # 直接建业务 PDB：服务名即 SPMSUAT，与 conf/app.yaml 的 service_name 一致
+      ORACLE_DATABASE: SPMSUAT
+    ports: ["1521:1521"]
+    volumes:
+      - oracle-data:/opt/oracle/oradata
+      # 00 建用户 → 01 建表 → 02 示例数据 → 04 只读账号（按文件名顺序执行）
+      # setup：仅首次初始化执行（实测不可靠，保留兼容）
+      - ./oracle:/opt/oracle/scripts/setup:ro
+      # startup：每次容器启动都执行。脚本本身幂等，所以放在这里最稳——
+      # 不管卷是新建还是已有，起来就是一套完整可用的库。
+      - ./oracle:/opt/oracle/scripts/startup:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+
+  # 一次性初始化：首次 up 时建用户/建表/导数据，已初始化则跳过。
+  # 为什么不靠镜像的 scripts/setup：实测不触发（日志里没有任何执行记录）。
+  oracle-init:
+    image: gvenzl/oracle-free:23-slim
+    container_name: projask-oracle-init
+    entrypoint: ["bash", "/scripts/docker_init.sh"]
+    environment:
+      ORACLE_PASSWORD: "Spms123456"
+      ORACLE_DATABASE: SPMSUAT
+    volumes:
+      - ./oracle:/scripts:ro
+    depends_on:
+      oracle:
+        condition: service_healthy
+    restart: "no"
+
+  redis:
+    container_name: projask-redis
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    volumes: [redis-data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+
+  qdrant:
+    container_name: projask-qdrant
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: [qdrant-data:/qdrant/storage]
+
+  elasticsearch:
+    container_name: projask-es
+    # 本地构建：在官方镜像上装 IK 中文分词（见 docker/elasticsearch/Dockerfile）
+    # 同时给 image 打标签：构建产物可复用，换机器时 compose 会自动构建
+    image: projask-elasticsearch:8.15.0-ik
+    build: ./docker/elasticsearch
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    ports: ["9200:9200"]
+    volumes: [es-data:/usr/share/elasticsearch/data]
+
+  mongodb:
+    container_name: projask-mongo
+    image: mongo:7
+    ports: ["27017:27017"]
+    volumes: [mongo-data:/data/db]
+
+  embedding:
+    container_name: projask-embedding
+    # 不在 profile 里：docker compose up -d 会一起起来。
+    # 前提是 models/bge-large-zh-v1.5 已下载（见 20.4），否则本容器会启动失败，
+    # 但不影响其他服务。
+    # ghcr.io 国内直连很慢：走南京大学镜像站。备选 ghcr.m.daocloud.io。
+    image: ghcr.nju.edu.cn/huggingface/text-embeddings-inference:cpu-1.6
+    # 模型权重预下载到 ./models 再挂载。不能用 HF_ENDPOINT 让容器自己下：
+    # TEI 的下载器要求响应带 Content-Range 头，hf-mirror 不返回，会直接报
+    # "Could not download model artifacts: Header content-range is missing"。
+    command: ["--model-id", "/data/bge-large-zh-v1.5"]
+    ports: ["8081:80"]
+    volumes: ["./models:/data"]
+
+  app:
+    container_name: projask-app
+    build: .
+    # 默认不启动：main.py 到第 17 步才存在，提前构建会报
+    # "failed to compute cache key: ... /main.py: not found"。
+    # 需要时显式拉起：docker compose --profile app up -d
+    profiles: ["app"]
+    depends_on:
+      oracle: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      # 本地演示：development + 不校验登录；生产必须改 oidc/cas
+      PROJASK_ENV: development
+      PROJASK_DB_META_HOST: oracle
+      PROJASK_DB_META_PASSWORD: "Spms123456"
+      PROJASK_DB_DW_HOST: oracle
+      PROJASK_DB_DW_PASSWORD: "Spms123456"
+      PROJASK_DB_DW_READER_HOST: oracle
+      PROJASK_DB_DW_READER_PASSWORD: "Spms123456"
+      PROJASK_REDIS_HOST: redis
+      PROJASK_QDRANT_HOST: qdrant
+      PROJASK_ES_HOST: elasticsearch
+      PROJASK_MONGO_HOST: mongodb
+      PROJASK_EMBEDDING_HOST: embedding
+      PROJASK_AUTH_MODE: none
+      PROJASK_SCOPE_MODE: none
+      PROJASK_COOKIE_SECURE: "false"
+      PROJASK_LLM_API_KEY: ${PROJASK_LLM_API_KEY}
+      PROJASK_LLM_BASE_URL: ${PROJASK_LLM_BASE_URL}
+    ports: ["8000:8000"]
+
+volumes:
+  oracle-data:
+  redis-data:
+  qdrant-data:
+  es-data:
+  mongo-data:
+  embedding-cache:

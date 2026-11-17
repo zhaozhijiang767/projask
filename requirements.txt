@@ -1,0 +1,39 @@
+# Web
+fastapi[standard]>=0.115
+uvicorn[standard]>=0.30
+
+# 数据库（Oracle 异步驱动）
+sqlalchemy[asyncio]>=2.0.30
+oracledb>=2.0
+cryptography>=42.0
+
+# 向量库 / 全文检索
+qdrant-client>=1.9
+elasticsearch[async]>=8,<9
+
+# 会话历史与审计明细
+motor>=3.4
+
+# 共享状态：唯一存储，必需依赖
+redis>=5.0
+
+# LLM 编排
+langchain>=0.3
+langchain-core>=0.3
+langchain-openai>=0.2
+langchain-huggingface==1.0.0
+langgraph>=0.2
+huggingface-hub>=0.33.4,<1.0
+
+# 工具
+jieba>=0.42
+pydantic>=2.7
+python-dotenv>=1.0
+pyyaml>=6.0
+loguru>=0.7
+httpx>=0.27
+
+# 测试
+pytest>=8.0
+pytest-asyncio>=0.23
+fakeredis>=2.23

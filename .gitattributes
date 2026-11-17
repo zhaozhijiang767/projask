@@ -1,0 +1,12 @@
+# 统一换行符：仓库与工作区一律 LF。
+# 本机 Git 的系统配置是 core.autocrlf=true，检出时会把文件改成 CRLF，
+# 而 .python-version / *.yaml / *.sh 带 \r 会被 uv、pyenv、容器脚本读错。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
