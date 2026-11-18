@@ -4,41 +4,171 @@ app:
   # development：允许本地默认值；production：启动期强制校验安全配置
   environment: development
   cors_origins:
-    - http://localhost:5173
-    - http://localhost:8000
+    - http://localhost:5173 # 本地开发环境
+    - http://localhost:8000 # 测试环境
 
+# 日志：用于记录应用运行时信息
 logging:
   file:
-    enable: true
-    level: INFO
-    path: logs
-    rotation: 10 MB
-    retention: 7 days
+    enable: true # 是否开启文件日志
+    level: INFO # 日志级别
+    path: logs # 日志目录
+    rotation: 10 MB # 日志文件大小阈值
+    retention: 7 days # 日志文件保留时间
   console:
-    enable: true
-    level: INFO
+    enable: true # 是否开启控制台日志
+    level: INFO # 日志级别
 
 # 元数据库：表 / 字段 / 指标 / 字段-指标关联（Oracle 用户 meta）
 db_meta:
-  host: localhost
-  port: 1521
-  user: meta
-  # 本地/测试环境口令；生产必须用 PROJASK_DB_META_PASSWORD 覆盖
-  password: Spms123456
-  service_name: SPMSUAT
+  host: localhost # 元数据库主机
+  port: 1521 # 元数据库端口
+  user: "" # 通过 .env 或环境变量 PROJASK_DB_META_USER 配置
+  password: "" # 通过 .env 或环境变量 PROJASK_DB_META_PASSWORD 配置
+  service_name: SPMSUAT # 本地/测试环境服务名
 
 # 数仓：语义层视图（Oracle 用户 dw，知识库构建用）
 db_dw:
-  host: localhost
-  port: 1521
-  user: dw
-  password: Spms123456
-  service_name: SPMSUAT
+  host: localhost # 数仓主机
+  port: 1521 # 数仓端口
+  user: "" # 通过 .env 或环境变量 PROJASK_DB_DW_USER 配置
+  password: "" # 通过 .env 或环境变量 PROJASK_DB_DW_PASSWORD 配置
+  service_name: SPMSUAT # 本地/测试环境服务名
 
 # 问数执行账号：只有视图 SELECT 权限；生产必填
 db_dw_reader:
-  host: localhost
-  port: 1521
-  user: dw_reader
-  password: Spms123456
-  service_name: SPMSUAT
+  host: localhost # 数仓主机
+  port: 1521 # 数仓端口
+  user: "" # 通过 .env 或环境变量 PROJASK_DB_DW_READER_USER 配置
+  password: "" # 通过 .env 或环境变量 PROJASK_DB_DW_READER_PASSWORD 配置
+  service_name: SPMSUAT # 本地/测试环境服务名
+
+# 向量数据库：存储字段-指标关联
+qdrant:
+  host: localhost # Qdrant 主机
+  port: 6333 # Qdrant 端口
+  embedding_size: 1024 # 嵌入维度
+  column_collection: projask_column # 字段集合名
+  metric_collection: projask_metric # 指标集合名
+
+# 嵌入模型：将文本转换为向量表示
+embedding:
+  host: localhost # 嵌入模型主机
+  port: 8081 # 嵌入模型端口
+  model: BAAI/bge-large-zh-v1.5 # 嵌入模型名称
+
+# Elasticsearch：用于存储向量表示
+es:
+  host: localhost # Elasticsearch 主机
+  port: 9200 # Elasticsearch 端口
+  index_name: projask_value # 索引名
+
+# 会话历史与审计明细
+mongo:
+  host: localhost # MongoDB 主机
+  port: 27017 # MongoDB 端口
+  username: "" # MongoDB 用户名
+  password: "" # MongoDB 口令
+  database: projask # 数据库名
+  session_collection: session_history # 会话历史
+  audit_collection: audit_log # 审计明细
+
+# 共享状态：唯一存储，不可用则服务不就绪
+redis:
+  host: localhost # Redis 主机
+  port: 6379 # Redis 端口
+  db: 0 # 数据库索引
+  password: "" # Redis 口令
+  key_prefix: projask # 键前缀
+
+# LLM：用于生成 SQL 语句
+llm:
+  # 重任务：SQL 生成与校正
+  model_name: "" # 通过 .env 或环境变量 PROJASK_LLM_MODEL_NAME 配置
+  # 轻任务：扩展 / 裁剪 / 追问改写；留空复用主模型
+  fast_model_name: "" # 通过 .env 或环境变量 PROJASK_LLM_FAST_MODEL_NAME 配置
+  api_key: "" # 通过 .env 或环境变量 PROJASK_LLM_API_KEY 配置
+  base_url: "" # 通过 .env 或环境变量 PROJASK_LLM_BASE_URL 配置
+  temperature: 0 # 温度参数
+  seed: 42 # 用于复现结果
+  # 单次调用最坏耗时 = request_timeout × (1 + max_retries)
+  request_timeout: 40 # 单位：秒
+  max_retries: 0 # 最大重试次数
+  # 思考预算（token）：私有化部署强制思考，这是唯一能限制生成长度的参数
+  think_budget: 1024 # 思考预算（token）：私有化部署强制思考，这是唯一能限制生成长度的参数
+  fast_think_budget: 512 # 快速思考预算（token）：私有化部署强制思考，这是唯一能限制生成长度的参数
+  # schema 上下文预算：超预算走确定性裁剪，防止 prompt 超窗口
+  context_token_budget: 8000 # 上下文预算（token）：超预算走确定性裁剪，防止 prompt 超窗口
+
+# 问数智能体：用于生成 SQL 语句，同时处理扩展、裁剪、追问改写等任务
+agent:
+  expansion:
+    enable: true # 是否开启扩展功能
+    max_keywords: 30 # 最大扩展关键词数
+    embedding_batch_size: 32 # 嵌入批量大小
+  recall:
+    score_threshold: 0.6 # 召回率阈值
+    limit: 5 # 召回结果数量限制
+    concurrency: 8 # 并发数
+  filter:
+    # auto：候选 ≤ 4 表且 ≤ 60 列时跳过 LLM 裁剪
+    mode: auto # 过滤模式
+    max_tables: 4 # 最大表数
+    max_columns: 60 # 最大列数
+    on_error: keep # 错误处理策略
+
+# 缓存：用于存储关键词、嵌入向量、数据库信息、查询 SQL 等
+cache:
+  ttl:
+    keyword: 21600 # 缓存关键词过期时间，单位：秒
+    embedding: 86400 # 缓存嵌入向量过期时间，单位：秒
+    db_info: 3600 # 缓存数据库信息过期时间，单位：秒
+    query_sql: 300 # 缓存查询 SQL 过期时间，单位：秒
+    negative: 60 # 缓存负样本过期时间，单位：秒
+    watermark: 900 # 缓存水印过期时间，单位：秒
+
+# 认证：用于用户登录、权限校验
+auth:
+  # none：本地调试；local：本地会话；oidc / cas：统一认证
+  mode: none # 认证模式
+  cookie_secure: false # 是否开启安全 cookie
+  session_cookie: projask_session # 会话 cookie 名称
+  session_ttl_seconds: 28800 # 会话过期时间，单位：秒
+  admin_users:
+    - admin # 管理员用户名
+  scope:
+    # none：不限制；unit：按单位映射项目；project：用户自带项目
+    mode: none # 认证范围
+    unit_projects:
+      镇海炼化:
+        - P2025-01
+        - P2025-02
+  oidc:
+    authorization_endpoint: "" # 认证授权端点
+    token_endpoint: "" # 认证令牌端点
+    userinfo_endpoint: "" # 用户信息端点
+    client_id: "" # 客户端 ID
+    client_secret: "" # 客户端密钥
+    scope: "" # 认证范围
+    redirect_uri: "" # 重定向 URI
+    user_field: "" # 用户字段名
+    name_field: "" # 姓名字段名
+    unit_field: "" # 单位字段名
+  cas:
+    login_url: "" # 登录 URL
+    validate_url: "" # 校验 URL
+    service_url: "" # 服务 URL
+
+# 限流：用于防止滥用
+rate_limit:
+  requests_per_minute: 100 # 每分钟最大请求次数
+  window_seconds: 60 # 滑动窗口时间，单位：秒
+
+# 查询：用于处理用户查询
+query:
+  # 总超时：必须大于 llm.request_timeout × (1+max_retries) × 最多串行调用数（5）
+  timeout: 240 # 单位：秒
+  history_limit: 6 # 最大历史记录数
+  max_concurrency: 1 # 最大并发数
+  require_where_for_detail: true # 是否强制要求 WHERE 子句，否则返回空结果
+  max_question_char: 2000 # 最大问题字符数
